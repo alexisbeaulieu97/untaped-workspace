@@ -97,7 +97,6 @@ def test_skip_manifest_errors_returns_unavailable_status_row(tmp_path: Path) -> 
             action="unavailable",
             detail=(f"workspace manifest unavailable: no manifest at {workspace.path}/untaped.yml"),
             cloned=False,
-            branch="",
         )
     ]
 

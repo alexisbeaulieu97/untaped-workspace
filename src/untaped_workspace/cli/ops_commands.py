@@ -28,9 +28,8 @@ from untaped_workspace.cli.common import (
     target_workspaces,
     workspace_settings,
 )
-from untaped_workspace.domain import SyncAction, SyncOutcome
+from untaped_workspace.domain import DEFAULT_FOREACH_TIMEOUT, SyncAction, SyncOutcome
 from untaped_workspace.infrastructure import (
-    DEFAULT_FOREACH_TIMEOUT,
     DEFAULT_SLOW_TIMEOUT,
     DEFAULT_TIMEOUT,
     GitRunner,
@@ -162,7 +161,7 @@ def _sync_summary(outcomes: list[SyncOutcome]) -> str:
     )
     parts = [f"{counts[action]} {label}" for action, label in action_labels if counts[action]]
     if counts["unavailable"]:
-        repo_total = sum(1 for outcome in outcomes if outcome.repo)
+        repo_total = total - counts["unavailable"]
         repo_noun = "repo" if repo_total == 1 else "repos"
         workspace_noun = "workspace" if counts["unavailable"] == 1 else "workspaces"
         detail = f" ({', '.join(parts)})" if parts else ""

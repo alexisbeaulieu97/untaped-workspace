@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from untaped_workspace.application.ports import Filesystem, ManifestReader, ShellRunner
 from untaped_workspace.application.repo_selector import select_repos
-from untaped_workspace.domain import ForeachOutcome, Repo, Workspace
+from untaped_workspace.domain import DEFAULT_FOREACH_TIMEOUT, ForeachOutcome, Repo, Workspace
 from untaped_workspace.errors import UnmatchedRepoFilter
 
 
@@ -32,7 +32,7 @@ class Foreach:
         parallel: int = 1,
         continue_on_error: bool = False,
         only: Sequence[str] | None = None,
-        timeout: float = 600.0,
+        timeout: float = DEFAULT_FOREACH_TIMEOUT,
     ) -> list[ForeachOutcome]:
         manifest = self._manifests.read(workspace.path)
         repos, unmatched = select_repos(manifest, only)

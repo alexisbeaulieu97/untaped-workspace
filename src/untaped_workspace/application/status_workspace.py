@@ -75,5 +75,4 @@ def _unavailable_row(workspace: Workspace, exc: ManifestError) -> StatusEntry:
         action="unavailable",
         detail=f"workspace manifest unavailable: {exc}",
         cloned=False,
-        branch="",
     )

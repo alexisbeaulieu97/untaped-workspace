@@ -18,9 +18,9 @@ import subprocess
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 
+from untaped_workspace.domain import DEFAULT_FOREACH_TIMEOUT
 from untaped_workspace.errors import WorkspaceError
 
-DEFAULT_FOREACH_TIMEOUT = 600.0
 _FOREACH_TIMEOUT_RETURN_CODE = 124
 _FOREACH_TERMINATE_GRACE_SECONDS = 0.2
 _KILL_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
@@ -71,6 +71,8 @@ def shell_runner(cmd: str, cwd: Path, *, timeout: float) -> subprocess.Completed
 
 
 def _completed_returncode(process: subprocess.Popen[str]) -> int:
+    # `communicate()` has completed before this helper is called, but
+    # `Popen.returncode` remains typed as optional.
     return process.returncode if process.returncode is not None else 0
 
 

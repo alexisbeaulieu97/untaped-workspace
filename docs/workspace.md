@@ -392,6 +392,9 @@ has a 600s timeout by default; raise it with `--timeout <seconds>` for
 long builds or test suites. A timed-out command has return code `124`
 and stderr includes `timed out after <Ns>s`; it otherwise follows the
 same fail-fast / continue / ignore rules as any non-zero command.
+Timeout cleanup is process-group best effort: deliberately daemonized
+descendants or OS-level uninterruptible waits can delay the final pipe
+drain after the timeout fires.
 
 ```bash
 untaped-workspace foreach 'git status -s' --workspace prod

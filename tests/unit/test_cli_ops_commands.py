@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from untaped.api import build_tool_app
@@ -570,6 +571,43 @@ def test_sync_all_unavailable_manifest_does_not_abort_valid_workspace(
     assert (alpha / "upstream").is_dir()
 
 
+def test_sync_all_unavailable_manifest_json_output(
+    tmp_path: Path,
+    upstream: Path,
+    isolate_config: Path,
+    isolated_cache: Path,
+) -> None:
+    alpha = tmp_path / "alpha"
+    alpha.mkdir()
+    ghost = tmp_path / "ghost"
+    (alpha / "untaped.yml").write_text(
+        f"name: alpha\nrepos:\n  - url: file://{upstream}\n    name: upstream\n",
+        encoding="utf-8",
+    )
+    isolate_config.write_text(
+        f"""
+        workspace:
+          workspaces:
+            - name: alpha
+              path: {alpha}
+            - name: ghost
+              path: {ghost}
+        """,
+        encoding="utf-8",
+    )
+
+    result = CliInvoker().invoke(app, ["sync", "--all", "--format", "json"])
+
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.stdout)
+    assert any(row["workspace"] == "alpha" and row["action"] == "clone" for row in rows)
+    ghost_rows = [row for row in rows if row["workspace"] == "ghost"]
+    assert len(ghost_rows) == 1
+    assert ghost_rows[0]["repo"] == ""
+    assert ghost_rows[0]["action"] == "unavailable"
+    assert "workspace manifest unavailable: no manifest at" in ghost_rows[0]["detail"]
+
+
 def test_status_all_unavailable_manifest_outputs_machine_visible_row(
     tmp_path: Path,
     isolate_config: Path,
@@ -606,7 +644,7 @@ def test_status_all_unavailable_manifest_outputs_machine_visible_row(
         "repo": "",
         "action": "unavailable",
         "cloned": False,
-        "branch": "",
+        "branch": None,
         "ahead": 0,
         "behind": 0,
         "modified": 0,
@@ -615,6 +653,117 @@ def test_status_all_unavailable_manifest_outputs_machine_visible_row(
     assert row["detail"].startswith(
         f"workspace manifest unavailable: no manifest at {ghost}/untaped.yml"
     )
+
+
+def test_status_all_unavailable_manifest_raw_output(
+    tmp_path: Path,
+    isolate_config: Path,
+) -> None:
+    alpha = tmp_path / "alpha"
+    alpha.mkdir()
+    ghost = tmp_path / "ghost"
+    (alpha / "untaped.yml").write_text(
+        "name: alpha\nrepos:\n  - url: https://x/api.git\n    name: api\n",
+        encoding="utf-8",
+    )
+    isolate_config.write_text(
+        f"""
+        workspace:
+          workspaces:
+            - name: alpha
+              path: {alpha}
+            - name: ghost
+              path: {ghost}
+        """,
+        encoding="utf-8",
+    )
+
+    result = CliInvoker().invoke(
+        app,
+        [
+            "status",
+            "--all",
+            "--format",
+            "raw",
+            "--columns",
+            "workspace",
+            "--columns",
+            "repo",
+            "--columns",
+            "action",
+            "--columns",
+            "detail",
+            "--columns",
+            "branch",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    rows = result.stdout.splitlines()
+    assert "alpha\tapi\tstatus\t\t" in rows
+    ghost_rows = [row for row in rows if row.startswith("ghost\t\tunavailable\t")]
+    assert len(ghost_rows) == 1
+    assert "workspace manifest unavailable: no manifest at" in ghost_rows[0]
+    assert ghost_rows[0].endswith("\t")
+
+
+def test_status_all_unreadable_manifest_does_not_abort_valid_workspace(
+    tmp_path: Path,
+    isolate_config: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alpha = tmp_path / "alpha"
+    alpha.mkdir()
+    ghost = tmp_path / "ghost"
+    ghost.mkdir()
+    ghost_manifest = ghost / "untaped.yml"
+    ghost_manifest.write_text("name: ghost\n", encoding="utf-8")
+    (alpha / "untaped.yml").write_text(
+        "name: alpha\nrepos:\n  - url: https://x/api.git\n    name: api\n",
+        encoding="utf-8",
+    )
+    isolate_config.write_text(
+        f"""
+        workspace:
+          workspaces:
+            - name: alpha
+              path: {alpha}
+            - name: ghost
+              path: {ghost}
+        """,
+        encoding="utf-8",
+    )
+    original = Path.read_text
+
+    def _read_text(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self == ghost_manifest:
+            raise PermissionError("denied")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _read_text)
+
+    result = CliInvoker().invoke(
+        app,
+        [
+            "status",
+            "--all",
+            "--format",
+            "raw",
+            "--columns",
+            "workspace",
+            "--columns",
+            "action",
+            "--columns",
+            "detail",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    rows = result.stdout.splitlines()
+    assert "alpha\tstatus\t" in rows
+    ghost_rows = [row for row in rows if row.startswith("ghost\tunavailable\t")]
+    assert len(ghost_rows) == 1
+    assert f"could not read manifest at {ghost_manifest}" in ghost_rows[0]
 
 
 def test_status_all_malformed_registry_entry_stays_hard_error(isolate_config: Path) -> None:

@@ -283,7 +283,9 @@ Other side-effecting calls (shell-out for `foreach`, editor launch for
   `timed out after <Ns>s`. This intentionally differs from `GitRunner`, which
   raises `GitError` on timeout; `foreach` needs row-level outcomes so
   fail-fast / continue / ignore modes all work through the same `returncode`
-  path.
+  path. This cleanup is process-group best effort: deliberately daemonized
+  descendants or OS-level uninterruptible waits can still delay the final pipe
+  drain after timeout.
 - `editor_runner` — concrete factory satisfying `application.ports.EditorRunner`
 - `resolve_editor_argv(editor, *, env=None, posix=None) -> tuple[str, ...]`
   — resolves the editor selection (`--editor` / `$VISUAL` / `$EDITOR` /

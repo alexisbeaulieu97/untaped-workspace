@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from untaped_workspace.application import Foreach
-from untaped_workspace.domain import Repo, Workspace, WorkspaceManifest
+from untaped_workspace.domain import DEFAULT_FOREACH_TIMEOUT, Repo, Workspace, WorkspaceManifest
 from untaped_workspace.errors import WorkspaceError
 from untaped_workspace.infrastructure import LocalFilesystem, ManifestRepository
 
@@ -146,6 +146,19 @@ def test_passes_timeout_to_runner(tmp_path: Path) -> None:
     )
 
     assert seen == [12.5]
+
+
+def test_uses_default_foreach_timeout(tmp_path: Path) -> None:
+    workspace = _seed(tmp_path, WorkspaceManifest(repos=[Repo(url="https://x/a.git")]))
+    seen: list[float] = []
+
+    def _runner(cmd: str, cwd: Path, *, timeout: float) -> subprocess.CompletedProcess[str]:
+        seen.append(timeout)
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    Foreach(ManifestRepository(), runner=_runner, fs=_FS)(workspace, command="echo hi")
+
+    assert seen == [DEFAULT_FOREACH_TIMEOUT]
 
 
 def test_outcome_records_command_when_uncloned(tmp_path: Path) -> None:

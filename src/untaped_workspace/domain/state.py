@@ -6,6 +6,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+DEFAULT_FOREACH_TIMEOUT = 600.0
+"""Default per-repo timeout for ``workspace foreach`` shell commands."""
+
 
 class RepoStatus(BaseModel):
     """A snapshot of one repo's git state.
