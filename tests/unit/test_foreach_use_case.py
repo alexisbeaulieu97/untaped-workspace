@@ -30,7 +30,7 @@ def _runner_factory(
     returncode = returncode or {}
     raises = raises or {}
 
-    def _runner(cmd: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    def _runner(cmd: str, cwd: Path, *, timeout: float) -> subprocess.CompletedProcess[str]:
         if cwd.name in raises:
             raise raises[cwd.name]
         rc = returncode.get(cwd.name, 0)
@@ -131,6 +131,23 @@ def test_outcome_records_command_and_duration(tmp_path: Path) -> None:
     assert outcome.duration_s >= 0.0
 
 
+def test_passes_timeout_to_runner(tmp_path: Path) -> None:
+    workspace = _seed(tmp_path, WorkspaceManifest(repos=[Repo(url="https://x/a.git")]))
+    seen: list[float] = []
+
+    def _runner(cmd: str, cwd: Path, *, timeout: float) -> subprocess.CompletedProcess[str]:
+        seen.append(timeout)
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    Foreach(ManifestRepository(), runner=_runner, fs=_FS)(
+        workspace,
+        command="echo hi",
+        timeout=12.5,
+    )
+
+    assert seen == [12.5]
+
+
 def test_outcome_records_command_when_uncloned(tmp_path: Path) -> None:
     ws_path = tmp_path / "prod"
     ws_path.mkdir()
@@ -159,7 +176,7 @@ def test_parallel_fail_fast_reports_in_flight_outcomes(tmp_path: Path) -> None:
     started_b = threading.Event()
     calls: list[str] = []
 
-    def _runner(cmd: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    def _runner(cmd: str, cwd: Path, *, timeout: float) -> subprocess.CompletedProcess[str]:
         calls.append(cwd.name)
         if cwd.name == "a":
             assert started_b.wait(timeout=1)
@@ -179,6 +196,38 @@ def test_parallel_fail_fast_reports_in_flight_outcomes(tmp_path: Path) -> None:
     assert by_repo["b"].returncode == 0
     assert by_repo["b"].stdout == "b"
     assert set(by_repo).issubset(set(calls))
+
+
+def test_serial_fail_fast_treats_timeout_as_failure(tmp_path: Path) -> None:
+    workspace = _seed(
+        tmp_path,
+        WorkspaceManifest(
+            repos=[
+                Repo(url="https://x/a.git"),
+                Repo(url="https://x/b.git"),
+                Repo(url="https://x/c.git"),
+            ]
+        ),
+    )
+
+    def _runner(cmd: str, cwd: Path, *, timeout: float) -> subprocess.CompletedProcess[str]:
+        if cwd.name == "a":
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=124,
+                stdout="",
+                stderr="timeout",
+            )
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout=cwd.name, stderr="")
+
+    outcomes = Foreach(ManifestRepository(), runner=_runner, fs=_FS)(
+        workspace,
+        command="x",
+        parallel=1,
+    )
+
+    assert [outcome.repo for outcome in outcomes] == ["a"]
+    assert outcomes[0].returncode == 124
 
 
 def test_file_not_found_yields_runner_error_outcome(tmp_path: Path) -> None:
@@ -217,7 +266,7 @@ def test_unknown_repo_filter_raises_before_running_command(tmp_path: Path) -> No
     workspace = _seed(tmp_path, WorkspaceManifest(repos=[Repo(url="https://x/a.git")]))
     calls: list[Path] = []
 
-    def _runner(cmd: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    def _runner(cmd: str, cwd: Path, *, timeout: float) -> subprocess.CompletedProcess[str]:
         calls.append(cwd)
         return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 

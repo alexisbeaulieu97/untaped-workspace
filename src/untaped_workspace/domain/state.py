@@ -40,7 +40,15 @@ class RepoStatus(BaseModel):
         return self.ahead > 0 and self.behind > 0
 
 
-SyncAction = Literal["clone", "pull", "skip", "remove", "up-to-date", "unmatched"]
+SyncAction = Literal[
+    "clone",
+    "pull",
+    "skip",
+    "remove",
+    "up-to-date",
+    "unmatched",
+    "unavailable",
+]
 """What ``sync`` did (or refused to do) for one repo.
 
 ``unmatched`` is the synthetic action emitted under ``sync --all --repo
@@ -48,6 +56,10 @@ SyncAction = Literal["clone", "pull", "skip", "remove", "up-to-date", "unmatched
 manifest. The ``repo`` field on those outcomes carries the unmatched
 identifier itself, so downstream consumers can filter on
 ``action == "unmatched"`` and read the typo from ``repo``.
+
+``unavailable`` is the synthetic action emitted under bulk operations
+when a registered workspace exists but its manifest cannot be read. The
+``repo`` field is empty because no repo was selected or inspected.
 """
 
 
@@ -62,6 +74,15 @@ class SyncOutcome(BaseModel):
     detail: str = ""
 
 
+StatusAction = Literal["status", "unavailable"]
+"""Status row kind.
+
+``status`` is the normal per-repo git snapshot. ``unavailable`` is a
+workspace-level bulk row with an empty ``repo`` when the workspace
+manifest could not be read.
+"""
+
+
 class StatusEntry(BaseModel):
     """One row of `untaped workspace status` output."""
 
@@ -69,6 +90,8 @@ class StatusEntry(BaseModel):
 
     workspace: str
     repo: str
+    action: StatusAction = "status"
+    detail: str = ""
     cloned: bool
     branch: str | None = None
     ahead: int = 0

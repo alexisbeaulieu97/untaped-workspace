@@ -21,6 +21,7 @@ from untaped_workspace.domain.payloads import (
 from untaped_workspace.domain.state import (
     ForeachOutcome,
     RepoStatus,
+    StatusAction,
     StatusEntry,
     SyncAction,
     SyncOutcome,
@@ -41,6 +42,7 @@ __all__ = [
     "ManifestSource",
     "Repo",
     "RepoStatus",
+    "StatusAction",
     "StatusEntry",
     "SyncAction",
     "SyncOutcome",
